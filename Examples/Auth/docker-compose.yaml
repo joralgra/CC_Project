@@ -1,0 +1,20 @@
+version: "3.0"
+services:
+  oauth2proxy:
+    image: "bitnami/oauth2-proxy:latest"
+    ports:
+      - "8080:8080"
+      - "4180:4180"
+    command: [
+      "--provider=github",
+      "--cookie-secure=false",
+      "--upstream=http://web:80",
+      "--http-address=0.0.0.0:8080",
+      "--skip-auth-regex=/forms/*",
+      "--redirect-url=http://localhost:8080/oauth2/callback",
+      "--email-domain=*"
+    ]
+    env_file:
+      - .env
+  web:
+    image: ibahob/echoheaders
