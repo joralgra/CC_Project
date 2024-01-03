@@ -1,0 +1,66 @@
+swagger: '2.0'
+info:
+  title: Front End API
+  description: Api for apply CRUD actions
+  version: 1.0.0
+basePath: /api/v1
+schemes:
+  - http
+paths:
+  /actions/send-feed:
+    post:
+      tags:
+        - Actions
+      description: It send job info to nats topic.
+      produces:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            '$ref': '#/definitions/JobDTO'
+      responses:
+        '200':
+          description: Success response
+          schema:
+            '$ref': '#/definitions/ApiResponse'
+        '500':
+          description: Error Response
+          schema:
+            '$ref': '#/definitions/ApiError'
+  /spec:
+    get:
+      tags:
+        - Specification
+      responses:
+        200:
+          description: Return the API specification
+definitions:
+  JobDTO:
+    type: object
+    required:
+      - user
+    properties:
+      user:
+        type: string
+    example:
+      user: Fernando
+  ApiResponse:
+    type: object
+    properties:
+      status:
+        type: string
+      description:
+        type: string
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/JobDTO'
+  ApiError:
+    type: object
+    properties:
+      status:
+        type: string
+      description:
+        type: string
