@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { sendJob } from './controllers/send-job';
+import { createJob } from './controllers/create-job';
 
 const router = Router();
 
-router.post('/send-job', sendJob);
+router.post('/create-job', createJob);
 
 export default router;

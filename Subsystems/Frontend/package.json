@@ -1,10 +1,11 @@
 {
-  "name": "front-end",
+  "name": "frontend",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node dist/index.js",
+    "start:docker": "npm run build && npm run start",
     "dev": "nodemon scr/index.ts",
     "build": "tsc -p ./tsconfig.json",
     "postbuild": "npm run copy-files",
