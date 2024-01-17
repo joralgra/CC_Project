@@ -7,19 +7,18 @@ basePath: /api/v1
 schemes:
   - http
 paths:
-  /actions/send-feed:
+  /actions/create-job:
     post:
       tags:
         - Actions
-      description: It send job info to nats topic.
-      produces:
-        - application/json
+      description: It create job and send info to nats topic.
+      consumes:
+        - multipart/form-data
       parameters:
-        - name: body
-          in: body
-          required: true
-          schema:
-            '$ref': '#/definitions/JobDTO'
+        - in: formData
+          name: upfile
+          type: file
+          description: The file to upload.
       responses:
         '200':
           description: Success response

@@ -1,38 +1,15 @@
-import { connect } from 'nats';
+import routes from './api/routes';
+import { port } from './config/env';
+import { natsWrapper } from './config/nats-wrapper';
+import Server from './config/server';
 
 const run = async () => {
-  try {
-    const nc = await connect({
-      servers: ['nats://localhost:4222'],
-    });
-    console.log(` 🔌connected to nats in server ${nc.getServer()} 🔌`);
+  const NATS_URI: any = process.env.NATS_URI;
+  //   const NATS_URI: any = 'nats://localhost:4222';
 
-    // // create a codec
-    // const sc = StringCodec();
-    // // create a simple subscriber and iterate over messages
-    // // matching the subscription
-    // const sub = nc.subscribe('hello');
-    // (async () => {
-    //   for await (const m of sub) {
-    //     console.log(`[${sub.getProcessed()}]: ${sc.decode(m.data)}`);
-    //   }
-    //   console.log('subscription closed');
-    // })();
+  await natsWrapper.connect(NATS_URI);
 
-    // nc.publish('hello', sc.encode('world'));
-    // nc.publish('hello', sc.encode('again'));
-    // nc.publish('hello', sc.encode('hi!'));
-
-    // we want to insure that messages that are in flight
-    // get processed, so we are going to drain the
-    // connection. Drain is the same as close, but makes
-    // sure that all messages in flight get seen
-    // by the iterator. After calling drain on the connection
-    // the connection closes.
-    // await nc.drain();
-  } catch (error) {
-    console.log(`❌ ${error} ❌`);
-  }
+  (await new Server().router(routes)).listen(port);
 };
 
 run();

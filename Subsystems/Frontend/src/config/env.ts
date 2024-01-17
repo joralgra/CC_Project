@@ -10,7 +10,7 @@ if (process.env.NODE_ENV === 'test') {
   dotenv.config();
 }
 
-export const port = env.get('PORT').default('5000').asInt();
+export const port = env.get('PORT').default('3000').asInt();
 export const basePath = env.get('BASE_PATH').required().asString();
 export const nodeEnv = env.get('NODE_ENV').required().asString();
 export const requestLimit = env.get('REQUEST_LIMIT').required().asString();
