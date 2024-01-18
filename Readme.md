@@ -27,7 +27,21 @@ docker compose up --build -d -f subsystems/docker-compose.yaml
 # Relevant messagaing data
 ## Names
 ### NATS Pub/Sub queue name
-### NATS Ojbect Store name
+*states* - For job related stuff
+*logs* - Internal for job system logging and observer functionality.
+
+### NATS Object Store name
+*data*
+
+### Job states for KV states
+Frontend:
+  - ENQUEUED
+Backend:
+  - PENDING 
+  - RUNNING
+  - FINISHED
+  - ERROR
+  - 
 ---
 ## Formatting
 ## NATS Pub/Sub queue message format
