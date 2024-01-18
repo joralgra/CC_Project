@@ -13,7 +13,48 @@ Project for an UPV Master Computers assigment.
 # Install / Deploy
 TODO - Using docker compose? And then migrate to Kubernetes / Kumori?
 
-# Run
+# Run (Vía docker compose)
+
+```bash
+docker compose up --build -d -f subsystems/docker-compose.yaml
+```
+
+# Run (Vía MiniKube)
 ```bash
 
+```
+---
+# Relevant messagaing data
+## Names
+### NATS Pub/Sub queue name
+### NATS Ojbect Store name
+---
+## Formatting
+## NATS Pub/Sub queue message format
+```json
+{}
+```
+## NATS KV format
+Key {user}.{job-id}
+
+p.e
+```
+xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx.xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+```
+
+Value
+p.e
+```json
+{}
+```
+## NATS Object Store blob naming
+For input files {job-id}-input
+p.e
+```
+xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx-input
+```
+For output files {job-id}-output
+p.e
+```
+xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx-lutput
 ```
