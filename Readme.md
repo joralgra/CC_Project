@@ -1,6 +1,6 @@
 # About the project
 
-Project for an UPV Master Computers assigment.
+Project for an UPV Master on High performance computing assigment.
 
 # Project Structure
 
@@ -56,5 +56,5 @@ xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx-input
 For output files {job-id}-output
 p.e
 ```
-xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx-lutput
+xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx-output
 ```
