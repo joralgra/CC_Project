@@ -40,6 +40,19 @@ services:
       - 3000
     networks: 
       - nats
+  worker:
+    build:
+      context: ./Worker
+      dockerfile: Dockerfile
+    restart: on-failure
+    links:
+      - nats
+    environment:
+      - NATS_URI=nats://nats:4222
+    depends_on:
+      - nats
+    networks:
+      - nats
   nats:
     container_name: nats
     image: nats

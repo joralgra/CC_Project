@@ -1,4 +1,6 @@
 const faceapi = require("face-api.js")
+// require('@tensorflow/tfjs-node');
+
 const canvas = require("canvas")
 const fs = require("fs")
 const path = require("path")
@@ -6,6 +8,7 @@ const path = require("path")
 const nats = require('nats');
 const blobUtil = require('blob-util');
 const uuid = require('uuid');
+
 
 // mokey pathing the faceapi canvas
 const {Canvas, Image, ImageData} = canvas
@@ -42,12 +45,15 @@ const scaleFactor = 0.8;
     await faceapi.nets.ageGenderNet.loadFromDisk(path.join(__dirname, './weights'))
     await faceapi.nets.ssdMobilenetv1.loadFromDisk(path.join(__dirname, './weights'))
     await faceapi.nets.faceRecognitionNet.loadFromDisk(path.join(__dirname, './weights'))
-
     console.log("🎇🟢 Weights loaded")
-    console.log(" 🎇⏳ Connecting to NATS...")
 
+    console.log(" 🎇⏳ Connecting to NATS...")
     // Connections to NATS
-    const NATS_URI = process.env.NATS_URI;
+    // const NATS_URI = process.env.NATS_URI;
+
+    const NATS_URI = "nats://localhost:4222";
+    console.log("@ -> " + NATS_URI)
+
     nc = await nats.connect({servers: [NATS_URI], json: true});
 
     sub = nc.subscribe("jobqueue", {queue: "jobqueue"});
@@ -77,62 +83,65 @@ const originalKvValue = {
 
 async function setup() {
     const done = await (async () => {
-        for await (const msg of sub) {
-            console.log("Message received: ");
-            console.log(msg);
+        // for await (const msg of sub) {
+        for await(const msg of sub) {
 
-            let pmsg = JSON.parse(msg.string());
-            console.log(pmsg)
+            try {
+                console.log("Message received: ");
+                console.log(msg.string());
 
-            let userId = pmsg.user;
-            let jobId = pmsg.jobId;
+                let pmsg = JSON.parse(msg.string());
 
-            // TODO: Validate the msg
+                let userId = pmsg.user;
+                let jobId = pmsg.jobId;
+                console.log(pmsg)
 
+                // TODO: Validate the msg
 
-            // Tell KV we are prepared, state PENDING
-            let kvValue = await getKV(userId + "." + jobId);
-            kvValue.state = "PENDING";
-            await putKV(userId + "." + jobId, kvValue);
-            console.log(" -> PENDING PHASE ")
+                // Tell KV we are prepared, state PENDING
+                let kvValue = await getKV(userId + "." + jobId);
+                kvValue.state = "PENDING";
+                kvValue.startTime = new Date().toISOString();
+                await putKV(userId + "." + jobId, kvValue);
+                console.log(" -> PENDING PHASE ")
 
-            // Get the Blob from the Object Store
-            let blob = await getBlob(jobId + "-input");
-            let mimetype = pmsg?.image?.mimetype;
+                // Get the Blob from the Object Store
+                let blob = await getBlob(jobId + "-input");
+                let mimetype = pmsg?.image?.mimetype;
 
-            // Tell the KV we are running, state RUNNING
-            kvValue = await getKV(userId + "." + jobId);
-            kvValue.state = "RUNNING";
-            await putKV(userId + "." + jobId, kvValue);
-            console.log(" -> RUNNING PHASE ")
+                // Tell the KV we are running, state RUNNING
+                kvValue = await getKV(userId + "." + jobId);
+                kvValue.state = "RUNNING";
+                await putKV(userId + "." + jobId, kvValue);
+                console.log(" -> RUNNING PHASE ")
 
-            // Run the job
-            let resBuffer = await execute_model(blob)
+                // Run the job
+                let resBuffer = await execute_model(blob)
 
-            // Store the Blob in the Object Store
-            let blob_name = jobId + "-output";
-            await storeBlob(blob_name, resBuffer);
+                // Store the Blob in the Object Store
+                let blob_name = jobId + "-output";
+                await storeBlob(blob_name, resBuffer);
 
-            // Tell the KV we are done, state DONE
-            kvValue = getKV(userId + "." + jobId);
-            kvValue.state = "FINISHED";
-            await putKV(userId + "." + jobId, "FINISHED");
-            console.log(" --> FINISHED PROCESSING JOB [" + jobId +"]")
+                // Tell the KV we are done, state DONE
+                kvValue = getKV(userId + "." + jobId);
+                kvValue.state = "FINISHED";
+                await putKV(userId + "." + jobId, "FINISHED");
+                console.log(" --> FINISHED PROCESSING JOB [" + jobId +"]")
+
+            } catch (e) {
+                console.log(" 🧨 ERROR: " + e)
+                let kvValue = await getKV(userId + "." + jobId);
+                kvValue.state = "ERROR";
+                kvValue.errorMsg = e;
+                await putKV(userId + "." + jobId, kvValue);
+                console.log(" --> ENDED JOB ABRUPTLY [" + jobId +"]")
+            }
         }
+        console.log("📣 All jobs processed successfully.")
+        console.log("  - - - FINISHING WORKER - - -")
     })();
 
-    // const jets = nc.jetstream();
-    // const kv = jets.kv("states");
-
-    // await kv.put("user.*", "bar");
-
-    // await kv.get("user.*")
 }
-
-
-
-
-
 
 function getFaceDetectorOptions(net) {
     return net === faceapi.nets.ssdMobilenetv1
@@ -181,12 +190,15 @@ async function execute_model(blob) {
             .withFaceDescriptors();
 
 
-    // create a new canvas and draw the detection and landmarks
+    // OLD create a new canvas and draw the detection and landmarks
+    // const out = faceapi.createCanvasFromMedia(img)
+    // faceapi.draw.drawDetections(out, results.map(res => res.detection))
+    // faceapi.draw.drawFaceLandmarks(out, results.map(res => res.landmarks), {drawLines: true, color: 'red'})
+    // faceapi.draw.drawFaceExpressions(out, results.map(res => res.expressions))
+
     const out = faceapi.createCanvasFromMedia(img)
     faceapi.draw.drawDetections(out, results.map(res => res.detection))
-    faceapi.draw.drawFaceLandmarks(out, results.map(res => res.landmarks), {drawLines: true, color: 'red'})
-    faceapi.draw.drawFaceExpressions(out, results.map(res => res.expressions))
-
+    faceapi.draw.drawFaceExpressions(out, results)
 
     // save the new canvas as image
     // saveFile('executionTest.jpg', out.toBuffer('image/jpeg'))

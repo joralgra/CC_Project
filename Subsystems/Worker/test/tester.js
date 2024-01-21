@@ -21,7 +21,6 @@ const originalKvValue = {
 
 // Connections to NATS
 let nc = null;
-let pub = null;
 let js = null;
 let objStoreService = null;
 let statesKVService = null;
@@ -43,7 +42,15 @@ let logsKVService = null;
 
     console.log(" 🎇🟢 Connected to NATS")
 
-})().then(send_sample_job);
+})().then(test_multiple_jobs);
+
+
+async function test_multiple_jobs() {
+    for (let i = 0; i < 100; i++) {
+        await send_sample_job();
+    }
+}
+
 
 async function send_sample_job() {
 

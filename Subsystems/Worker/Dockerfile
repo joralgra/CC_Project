@@ -7,9 +7,8 @@ FROM node:20.3.1-slim
 COPY . .
 
 RUN npm install -g npm@9.6.7
-RUN ls
 RUN npm install
-#ENV PATH /app/node_modules/.bin:$PATH
+
 
 #COPY . .
 
@@ -17,6 +16,6 @@ RUN npm install
 RUN #npm run build
 
 #EXPOSE 3000
-
+ENV NATS_URI=nats://nats1:4222
 # # Run the server
 CMD ["node","worker.js"]
