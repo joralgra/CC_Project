@@ -16,7 +16,7 @@ paths:
         - multipart/form-data
       parameters:
         - in: formData
-          name: upfile
+          name: image
           type: file
           description: The file to upload.
       responses:
@@ -28,6 +28,25 @@ paths:
           description: Error Response
           schema:
             '$ref': '#/definitions/ApiError'
+  /actions/status-job/{id}:
+    get:
+      sumary: Get status job by ID
+      parameters:
+        - in: path
+          name: id
+          type: string
+          required: true
+          description: string ID of the job to get
+      responses:
+        '200':
+          description: Success response
+          schema:
+            '$ref': '#/definitions/ApiResponse'
+        '500':
+          description: Error Response
+          schema:
+            '$ref': '#/definitions/ApiError'
+
   /spec:
     get:
       tags:

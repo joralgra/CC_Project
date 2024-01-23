@@ -4,11 +4,19 @@ import cors from 'cors';
 import express, { Application, Express } from 'express';
 import actuator from 'express-actuator';
 import http from 'http';
+import multer from 'multer';
 import os from 'os';
 import path from 'path';
 import appRoutes from '../api/routes';
 import { nodeEnv, requestLimit } from './env';
 import setupSwaggerAndRoutes from './swagger';
+
+const storage = multer.diskStorage({
+  destination: path.join(__dirname, '../../public/uploads'),
+  filename: (req: any, file: any, cb: any) => {
+    cb(null, Date.now() + '-' + file.originalname);
+  },
+});
 
 export default class ExpressServer {
   private app: Express;
@@ -27,6 +35,10 @@ export default class ExpressServer {
     this.app.use(actuator());
     this.app.use(express.static(`${root}/public`));
     this.app.use(cors());
+
+    // this.app.use(
+    //   multer({ storage, dest: path.join(__dirname, 'public/uploads') }).single('image')
+    // );
   }
 
   async router(routes: (app: Application) => void) {
