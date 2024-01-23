@@ -131,3 +131,5 @@ dist
 
 # Docker compose Dev
 docker-compose-dev.yaml
+
+public/uploads

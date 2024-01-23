@@ -4,8 +4,8 @@ import { natsWrapper } from './config/nats-wrapper';
 import Server from './config/server';
 
 const run = async () => {
-  const NATS_URI: any = process.env.NATS_URI;
-  //   const NATS_URI: any = 'nats://localhost:4222';
+  // const NATS_URI: any = process.env.NATS_URI;
+  const NATS_URI: any = 'nats://localhost:4222';
 
   await natsWrapper.connect(NATS_URI);
 

@@ -1,21 +1,20 @@
 import { Request, Response } from 'express';
-import { v4 as uuid } from 'uuid';
 import logger from '../../../config/logger';
-import ProducerService from '../../../services/producer-service';
+import QueryService from '../../../services/query-service';
 import buildLegacyResponse from '../../utils/build-legacy-response';
 
-export const createJob = async (req: Request, res: Response): Promise<Response> => {
-  const action = 'Create Job';
+interface Result {
+  relativePath: string | null;
+  status: string;
+}
+
+export const queryJob = async (req: Request, res: Response): Promise<Response> => {
+  const action = 'Question status of job';
   const start = new Date().getTime();
-  const jobId = uuid();
+  const jobId = req.params.id;
   // const user = req.headers['x-forwarded-user'];
   const user = 'FernandoJSR5';
   const email = req.headers['x-forwarded-email'];
-
-  const files: any = req.files;
-  const image = files.image;
-
-  console.log(files);
 
   const childLogger = logger.child({
     jobId,
@@ -25,18 +24,18 @@ export const createJob = async (req: Request, res: Response): Promise<Response> 
   childLogger.info({
     user,
     email,
-    message: 'Init message',
+    message: 'Init Question status of job in KV',
     responseTimeMS: Date.now() - start,
   });
   try {
-    await ProducerService.sendJob({
-      user,
+    const result: Result = await QueryService.statusJobById({
       jobId,
-      image,
+      user,
+      childLogger,
     });
 
     childLogger.info({
-      message: 'any message',
+      message: 'Question status of job was successfully',
       result: {},
       responseTimeMS: Date.now() - start,
       status: 200,
@@ -45,15 +44,21 @@ export const createJob = async (req: Request, res: Response): Promise<Response> 
     return res.status(200).json(
       buildLegacyResponse({
         status: 200,
-        description: 'Job was create successfully',
+        description: 'Question status of job was successfully',
         data: {
+          user,
           jobId,
+          status: result.status,
+          url:
+            result.relativePath == null
+              ? ''
+              : `${req.get('host')}/${result.relativePath}`,
         },
       })
     );
   } catch (error: any) {
     childLogger.info({
-      message: `Job was not sent to queue. ${error}`,
+      message: `Error getting status of job. ${error}`,
       responseTimeMS: Date.now() - start,
       status: 500,
     });
