@@ -30,6 +30,8 @@ paths:
             '$ref': '#/definitions/ApiError'
   /actions/status-job/{id}:
     get:
+      tags:
+        - Actions
       sumary: Get status job by ID
       parameters:
         - in: path
@@ -46,7 +48,20 @@ paths:
           description: Error Response
           schema:
             '$ref': '#/definitions/ApiError'
-
+  /actions/job-list:
+    get:
+      tags:
+        - Actions
+      sumary: Get job list by user
+      responses:
+        '200':
+          description: Success response
+          schema:
+            '$ref': '#/definitions/ApiResponse'
+        '500':
+          description: Error Response
+          schema:
+            '$ref': '#/definitions/ApiError'
   /spec:
     get:
       tags:
