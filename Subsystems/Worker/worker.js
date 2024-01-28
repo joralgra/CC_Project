@@ -9,12 +9,17 @@ const nats = require('nats');
 const blobUtil = require('blob-util');
 const uuid = require('uuid');
 
+const {
+    AckPolicy,
+    connect,
+    millis,
+    nuid,
+    RetentionPolicy
+} = require('nats');
 
 // mokey pathing the faceapi canvas
 const {Canvas, Image, ImageData} = canvas
 faceapi.env.monkeyPatch({Canvas, Image, ImageData})
-
-
 
 // Connections to NATS
 let nc = null;
@@ -23,7 +28,8 @@ let js = null;
 let objStoreService = null;
 let statesKVService = null;
 let logsKVService = null;
-
+let c2 = null;
+let streamName = null;
 
 // Model Setup
 const faceDetectionNet = faceapi.nets.ssdMobilenetv1
@@ -37,7 +43,7 @@ const minFaceSize = 50;
 const scaleFactor = 0.8;
 
 (async function () {
-    console.log( "🎇⏳ Loading weights...")
+    console.log("🎇⏳ Loading weights...")
     // load weights
     await faceDetectionNet.loadFromDisk(path.join(__dirname, './weights'))
     await faceapi.nets.faceLandmark68Net.loadFromDisk(path.join(__dirname, './weights'))
@@ -51,16 +57,47 @@ const scaleFactor = 0.8;
     // Connections to NATS
     // const NATS_URI = process.env.NATS_URI;
 
-    const NATS_URI = "nats://localhost:4222";
+    const NATS_URI = "nats://127.0.0.1:4222";
     console.log("@ -> " + NATS_URI)
 
     nc = await nats.connect({servers: [NATS_URI], json: true});
 
-    sub = nc.subscribe("jobqueue", {queue: "jobqueue"});
-
     js = nc.jetstream();
-    objStoreService = await js.views.os("configs");
-    statesKVService = await js.views.kv("states");
+
+    const NAME = "workQueueStream";
+    const SUBJECT = "subjectJob";
+    const SUBJECT_OBS = "subjectObserver";
+
+    const jsm = await nc.jetstreamManager()
+
+
+    try {
+
+        streamName = await jsm.streams.find(SUBJECT);
+
+    } catch (e) {
+        console.log(e);
+        // await jsm.streams.add({name: NAME, subjects: [SUBJECT]});
+        await jsm.streams.add({
+            name: NAME,
+            retention: RetentionPolicy.Workqueue,
+            subjects: [SUBJECT],
+        });
+        streamName = await jsm.streams.find(SUBJECT);
+        console.log("Stream wasn't created please restart service.")
+    }
+
+    await jsm.consumers.add(
+        streamName, {
+            ack_policy: AckPolicy.Explicit,
+            durable_name: SUBJECT,
+        });
+
+    // sub = nc.subscribe("job", {queue: "job"});
+    c2 = await js.consumers.get(NAME, SUBJECT);
+
+    objStoreService = await js.views.os("data");
+    statesKVService = await js.views.kv("jobState");
     logsKVService = await js.views.kv("logs");
 
     console.log(" 🎇🟢 Connected to NATS")
@@ -82,15 +119,25 @@ const originalKvValue = {
 }
 
 async function setup() {
+
     const done = await (async () => {
+
+        let messages = await c2.fetch({max_messages: 100});
+        console.log("  - - - STARTING WORKER - - -")
+        console.log("✉ Received " + messages.received + " messages.")
+
         // for await (const msg of sub) {
-        for await(const msg of sub) {
+        for await(const msg of messages) {
 
             try {
+                console.log("🟢 Processing job...")
+                const startTime = process.hrtime();
+
+                // Realiza alguna tarea que quieres medir
                 console.log("Message received: ");
                 console.log(msg.string());
 
-                let pmsg = JSON.parse(msg.string());
+                let pmsg =JSON.parse( Buffer.from(msg.data).toString());
 
                 let userId = pmsg.user;
                 let jobId = pmsg.jobId;
@@ -123,21 +170,32 @@ async function setup() {
                 await storeBlob(blob_name, resBuffer);
 
                 // Tell the KV we are done, state DONE
-                kvValue = getKV(userId + "." + jobId);
+                kvValue = await getKV(userId + "." + jobId);
                 kvValue.state = "FINISHED";
-                await putKV(userId + "." + jobId, "FINISHED");
-                console.log(" --> FINISHED PROCESSING JOB [" + jobId +"]")
 
+                const elapsedTime = process.hrtime(startTime);
+                const elapsedTimeInMs = elapsedTime[0] * 1000 + elapsedTime[1] / 1e6;
+
+                console.log(`Process elapsed time: ${elapsedTimeInMs} ms`);
+                kvValue.elapsedTime = elapsedTimeInMs;
+
+                await putKV(userId + "." + jobId, kvValue);
+                console.log(" --> FINISHED PROCESSING JOB [" + jobId + "]");
+                msg.ack();
             } catch (e) {
-                console.log(" 🧨 ERROR: " + e)
+                console.log(" 🧨 ERROR: " + e);
                 let kvValue = await getKV(userId + "." + jobId);
                 kvValue.state = "ERROR";
                 kvValue.errorMsg = e;
                 await putKV(userId + "." + jobId, kvValue);
-                console.log(" --> ENDED JOB ABRUPTLY [" + jobId +"]")
+                console.log(" --> ENDED JOB ABRUPTLY [" + jobId + "]")
+                msg?.ack();
             }
         }
+
         console.log("📣 All jobs processed successfully.")
+
+
         console.log("  - - - FINISHING WORKER - - -")
     })();
 
@@ -245,6 +303,7 @@ async function runFromFile() {
 
 /* ---------------------------------- */
 /* -------- NATS OPERATIONS --------- */
+
 /* ---------------------------------- */
 async function putKV(key, value) {
     // Store in NATS KV
@@ -272,6 +331,7 @@ async function getBlob(blob_name) {
 
 /* ---------------------------------- */
 /* ---- END OF NATS OPERATIONS ------ */
+
 /* ---------------------------------- */
 
 async function kvTest() {
@@ -292,7 +352,6 @@ async function kvTest() {
 }
 
 
-
 async function storeBlobTest() {
     // Print filesystem
     // console.log(fs.readdirSync('imgs_src'))
@@ -307,7 +366,7 @@ async function storeBlobTest() {
     await readBlobTest()
 }
 
-async function readBlobTest(){
+async function readBlobTest() {
     let blob_name = inputMsgExample.jobId + "-input";
     let blob = await getBlob(blob_name);
     console.log(blob);

@@ -29,11 +29,11 @@ services:
     container_name: frontend_container
     restart: on-failure
     links:
-      - nats
+      - nats1
     environment:
       - NATS_URI=nats://nats:4222
     depends_on:
-      - nats
+      - nats1
     ports:
       - 3000:3000
     expose:
@@ -46,39 +46,40 @@ services:
       dockerfile: Dockerfile
     restart: on-failure
     links:
-      - nats
+      - nats1
     environment:
       - NATS_URI=nats://nats:4222
     depends_on:
-      - nats
+      - nats1
     networks:
       - nats
-  nats:
-    container_name: nats
+  nats1:
+    container_name: nats1
     image: nats
-    hostname: nats-server
     entrypoint: /nats-server
     command: --server_name N1 --cluster_name JSC --js --sd /data --cluster nats://0.0.0.0:4245 --routes nats://nats2:4245,nats://nats3:4245 -p 4222
     networks:
       - nats
     ports:
-      - 8222:8222
+      - 4222:4222
     expose:
       - 4222
+
   nats2:
     container_name: nats2
     image: nats
     entrypoint: /nats-server
-    command: --server_name N2 --cluster_name JSC --js --sd /data --cluster nats://0.0.0.0:4245 --routes nats://nats:4245,nats://nats3:4245 -p 4222
+    command: --server_name N2 --cluster_name JSC --js --sd /data --cluster nats://0.0.0.0:4245 --routes nats://nats1:4245,nats://nats3:4245 -p 4222
     networks:
       - nats
     ports:
       - 4223:4222
+
   nats3:
     container_name: nats3
     image: nats
     entrypoint: /nats-server
-    command: --server_name N3 --cluster_name JSC --js --sd /data --cluster nats://0.0.0.0:4245 --routes nats://nats:4245,nats://nats2:4245 -p 4222
+    command: --server_name N3 --cluster_name JSC --js --sd /data --cluster nats://0.0.0.0:4245 --routes nats://nats1:4245,nats://nats2:4245 -p 4222
     networks:
       - nats
     ports:

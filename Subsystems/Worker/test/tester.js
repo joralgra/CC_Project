@@ -4,7 +4,6 @@ const uuid = require('uuid');
 const fs = require("fs");
 const path = require("path");
 
-
 const inputMsgExample = {
     user: "8cb2f9c7-2e9b-4bdc-9fe7-3d6a1a9a45e8",
     jobId: "e8d4aaf5-56cf-48a0-af82-7391c6db09d2",
@@ -27,7 +26,7 @@ let statesKVService = null;
 let logsKVService = null;
 
 (async function () {
-    console.log(" 🎇⏳ Connecting to NATS...")
+    console.log("🎇⏳ Connecting to NATS...")
 
     // Connections to NATS
     const NATS_URI = process.env.NATS_URI;
@@ -36,11 +35,12 @@ let logsKVService = null;
     // pub = nc.publish("jobqueue", {queue: "jobqueue"});
 
     js = nc.jetstream();
-    objStoreService = await js.views.os("configs");
-    statesKVService = await js.views.kv("states");
+
+    objStoreService = await js.views.os("data");
+    statesKVService = await js.views.kv("jobState");
     logsKVService = await js.views.kv("logs");
 
-    console.log(" 🎇🟢 Connected to NATS")
+    console.log("🎇🟢 Connected to NATS")
 
 })().then(test_multiple_jobs);
 
@@ -68,7 +68,7 @@ async function send_sample_job() {
     await storeBlob(blob_name, blob);
 
 
-    nc.publish("jobqueue", JSON.stringify(inputMsgExample));
+    nc.publish("job", JSON.stringify(inputMsgExample));
     console.log(" 🟢 Sample work sent");
 }
 

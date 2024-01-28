@@ -2,7 +2,6 @@
 
 DC_FILE_PATH="../Subsystems/docker-compose.yaml"
 
-## TODO Get args
 # 1. Number of nodes to add
 if [[ "$#" -eq 0 ]]; then
     echo "Please provide at least one argument."

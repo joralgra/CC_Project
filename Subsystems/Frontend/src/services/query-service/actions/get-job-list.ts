@@ -3,7 +3,7 @@ import { natsWrapper } from '../../../config/nats-wrapper';
 const jobListByUser = async (user: string) => {
   const nc = natsWrapper.client;
   const js = nc.jetstream();
-  const kv = await js.views.kv('jobs');
+  const kv = await js.views.kv('jobState');
   let jobs = [];
   const iter = await kv.history({ key: `${user}.*` });
 

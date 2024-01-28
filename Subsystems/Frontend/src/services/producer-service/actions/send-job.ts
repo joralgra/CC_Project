@@ -46,12 +46,12 @@ const sendJob = async (data: Data) => {
       blob
     );
 
-    let msg = await js.publish('job', Empty, {
-      msgID: JSON.stringify({
+    let msg = await js.publish('subjectJob',
+      JSON.stringify({
         user,
         jobId,
-      }),
-    });
+      })
+    );
 
     console.log(`${msg.stream}[${msg.seq}]: duplicate? ${msg.duplicate}`);
   } catch (error) {

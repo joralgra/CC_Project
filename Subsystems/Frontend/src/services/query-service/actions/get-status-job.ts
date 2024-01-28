@@ -10,8 +10,8 @@ const statusJobById = async (data: Data) => {
   const { user, jobId, childLogger } = data;
   const nc = natsWrapper.client;
   const js = nc.jetstream();
-  const kv = await js.views.kv('jobs');
-  const os = await js.views.os('images');
+  const kv = await js.views.kv('jobState');
+  const os = await js.views.os('data');
   let relativePath = null;
 
   let entry = await kv.get(`${user}.${jobId}`);
@@ -27,8 +27,8 @@ const statusJobById = async (data: Data) => {
 
   const status = jsonEntry.state;
 
-  if (status === 'ENQUEUED') {
-    let blob: any = await os.getBlob(jobId + '-input');
+  if (status === 'FINISHED') {
+    let blob: any = await os.getBlob(jobId + '-output');
     const buffer = Buffer.from(blob);
     const extension = jsonEntry.image.extension;
     const path = `./public/uploads/${jobId}.${extension}`;
