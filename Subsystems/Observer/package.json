@@ -1,0 +1,22 @@
+{
+  "name": "observer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "master": "nodemon master.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Fernando Salazar",
+  "license": "ISC",
+  "dependencies": {
+    "fastify": "^4.25.2",
+    "http": "^0.0.1-security",
+    "node-schedule": "^2.1.1",
+    "nats": "^2.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
