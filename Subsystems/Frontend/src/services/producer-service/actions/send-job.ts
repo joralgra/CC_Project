@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { Empty } from 'nats';
 import path from 'path';
 import { natsWrapper } from '../../../config/nats-wrapper';
 interface Data {
@@ -11,8 +12,12 @@ const sendJob = async (data: Data) => {
   const { user, jobId, image } = data;
   const nc = natsWrapper.client;
   const js = nc.jetstream();
-  const os = await js.views.os('images');
-  const kv = await js.views.kv('states');
+  const jsm = await nc.jetstreamManager();
+
+  // await jsm.streams.add({ name: 'QueueStream', subjects: ['observer', 'job'] });
+
+  const os = await js.views.os('data');
+  const kv = await js.views.kv('jobState');
   try {
     await kv.put(
       `${user}.${jobId}`,
@@ -20,6 +25,7 @@ const sendJob = async (data: Data) => {
         user,
         jobId,
         state: 'ENQUEUED',
+        timeStamp: new Date(),
         image: {
           mimetype: image?.mimetype,
           filename: image?.filename,
@@ -40,13 +46,14 @@ const sendJob = async (data: Data) => {
       blob
     );
 
-    nc.publish(
-      'jobQueue',
-      JSON.stringify({
+    let msg = await js.publish('job', Empty, {
+      msgID: JSON.stringify({
         user,
         jobId,
-      })
-    );
+      }),
+    });
+
+    console.log(`${msg.stream}[${msg.seq}]: duplicate? ${msg.duplicate}`);
   } catch (error) {
     throw error;
   }

@@ -24,4 +24,5 @@ export interface LegacyResponse {
   status?: number;
   description?: string;
   data?: any;
+  jobs?: any;
 }
