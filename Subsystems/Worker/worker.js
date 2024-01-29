@@ -29,6 +29,7 @@ let objStoreService = null;
 let statesKVService = null;
 let logsKVService = null;
 let c2 = null;
+let cObs = null;
 let streamName = null;
 
 // Model Setup
@@ -55,9 +56,10 @@ const scaleFactor = 0.8;
 
     console.log(" 🎇⏳ Connecting to NATS...")
     // Connections to NATS
-    // const NATS_URI = process.env.NATS_URI;
+    const NATS_URI = process.env.NATS_URI;
 
-    const NATS_URI = "nats://127.0.0.1:4222";
+    // const NATS_URI = "nats://127.0.0.1:4222";
+
     console.log("@ -> " + NATS_URI)
 
     nc = await nats.connect({servers: [NATS_URI], json: true});
@@ -81,20 +83,30 @@ const scaleFactor = 0.8;
         await jsm.streams.add({
             name: NAME,
             retention: RetentionPolicy.Workqueue,
-            subjects: [SUBJECT],
+            subjects: [SUBJECT, SUBJECT_OBS],
         });
+
+        await jsm.consumers.add(
+            streamName, {
+                ack_policy: AckPolicy.Explicit,
+                durable_name: SUBJECT,
+                filter_subject: SUBJECT+".>"
+            });
+
+        await jsm.consumers.add(
+            streamName, {
+                ack_policy: AckPolicy.Explicit,
+                durable_name: SUBJECT_OBS,
+                filter_subject: SUBJECT_OBS+".>"
+            });
+
         streamName = await jsm.streams.find(SUBJECT);
         console.log("Stream wasn't created please restart service.")
     }
 
-    await jsm.consumers.add(
-        streamName, {
-            ack_policy: AckPolicy.Explicit,
-            durable_name: SUBJECT,
-        });
-
     // sub = nc.subscribe("job", {queue: "job"});
     c2 = await js.consumers.get(NAME, SUBJECT);
+    cObs = await js.consumers.get(NAME, SUBJECT_OBS);
 
     objStoreService = await js.views.os("data");
     statesKVService = await js.views.kv("jobState");
@@ -102,7 +114,7 @@ const scaleFactor = 0.8;
 
     console.log(" 🎇🟢 Connected to NATS")
 
-})().then(setup);
+})().then(start_engine);
 
 const inputMsgExample = {
     user: "8cb2f9c7-2e9b-4bdc-9fe7-3d6a1a9a45e8",
@@ -118,86 +130,116 @@ const originalKvValue = {
     result: null
 }
 
-async function setup() {
+let isRunning= true;
 
-    const done = await (async () => {
+async function start_engine() {
 
-        let messages = await c2.fetch({max_messages: 100});
-        console.log("  - - - STARTING WORKER - - -")
-        console.log("✉ Received " + messages.received + " messages.")
+    // Worker Engine loop
+    console.log("  - - - STARTING WORKER - - -")
+    while (isRunning) {
 
-        // for await (const msg of sub) {
-        for await(const msg of messages) {
+        let messages = await c2.fetch({max_messages: 1});
+        // Convert the iterable to an array
+        // let count = 0;
+        // for await(const msg of messages) count++; // What a shitty way, but this is a shitty iterable
+        // console.log("✉ Received " + (count > 0? "a": "no") + " message.")
+        await compute_unit(messages);
 
-            try {
-                console.log("🟢 Processing job...")
-                const startTime = process.hrtime();
+        await millis(1000);
 
-                // Realiza alguna tarea que quieres medir
-                console.log("Message received: ");
-                console.log(msg.string());
+        let obsMessages = await cObs.fetch({max_messages: 1});
+        // count = 0;
+        // for await(const msg of messages) count++; // What a shitty way, but this is a shitty iterable
+        // console.log("💌 Received " + (count > 0? "a": "no") + " observer message.")
+        await check_system(obsMessages);
+        console.log("Relaunch listener...")
 
-                let pmsg =JSON.parse( Buffer.from(msg.data).toString());
+    }
+    console.log("  - - - FINISHING WORKER - - -")
+}
 
-                let userId = pmsg.user;
-                let jobId = pmsg.jobId;
-                console.log(pmsg)
-
-                // TODO: Validate the msg
-
-                // Tell KV we are prepared, state PENDING
-                let kvValue = await getKV(userId + "." + jobId);
-                kvValue.state = "PENDING";
-                kvValue.startTime = new Date().toISOString();
-                await putKV(userId + "." + jobId, kvValue);
-                console.log(" -> PENDING PHASE ")
-
-                // Get the Blob from the Object Store
-                let blob = await getBlob(jobId + "-input");
-                let mimetype = pmsg?.image?.mimetype;
-
-                // Tell the KV we are running, state RUNNING
-                kvValue = await getKV(userId + "." + jobId);
-                kvValue.state = "RUNNING";
-                await putKV(userId + "." + jobId, kvValue);
-                console.log(" -> RUNNING PHASE ")
-
-                // Run the job
-                let resBuffer = await execute_model(blob)
-
-                // Store the Blob in the Object Store
-                let blob_name = jobId + "-output";
-                await storeBlob(blob_name, resBuffer);
-
-                // Tell the KV we are done, state DONE
-                kvValue = await getKV(userId + "." + jobId);
-                kvValue.state = "FINISHED";
-
-                const elapsedTime = process.hrtime(startTime);
-                const elapsedTimeInMs = elapsedTime[0] * 1000 + elapsedTime[1] / 1e6;
-
-                console.log(`Process elapsed time: ${elapsedTimeInMs} ms`);
-                kvValue.elapsedTime = elapsedTimeInMs;
-
-                await putKV(userId + "." + jobId, kvValue);
-                console.log(" --> FINISHED PROCESSING JOB [" + jobId + "]");
-                msg.ack();
-            } catch (e) {
-                console.log(" 🧨 ERROR: " + e);
-                let kvValue = await getKV(userId + "." + jobId);
-                kvValue.state = "ERROR";
-                kvValue.errorMsg = e;
-                await putKV(userId + "." + jobId, kvValue);
-                console.log(" --> ENDED JOB ABRUPTLY [" + jobId + "]")
-                msg?.ack();
-            }
+async function check_system(obsMessages){
+    for await(const msg of obsMessages) {
+        let pmsg = Buffer.from(msg.data).toString();
+        if(pmsg === "DOWN"){
+            msg.ack();
+            isRunning = false;
         }
+    }
+}
 
-        console.log("📣 All jobs processed successfully.")
+async function compute_unit(messages) {
 
+    for await(const msg of messages) {
 
-        console.log("  - - - FINISHING WORKER - - -")
-    })();
+        try {
+            msg.ack();
+            console.log("🟢 Processing job...")
+            const startTime = process.hrtime();
+
+            // Realiza alguna tarea que quieres medir
+            console.log("✉ ✉ ✉ ✉ ✉");
+            // console.log(msg.string());
+
+            let pmsg = JSON.parse(Buffer.from(msg.data).toString());
+
+            let userId = pmsg.user;
+            let jobId = pmsg.jobId;
+            console.log("Working on job [" + jobId + "]");
+            console.log("For User [" + userId + "]");
+
+            // TODO: Validate the msg
+
+            // Tell KV we are prepared, state PENDING
+            let kvValue = await getKV(userId + "." + jobId);
+            kvValue.state = "PENDING";
+            kvValue.startTime = new Date().toISOString();
+            await updateKV(userId + "." + jobId, kvValue);
+            console.log(" -> PENDING PHASE ")
+
+            // Get the Blob from the Object Store
+            let blob = await getBlob(jobId + "-input");
+            let mimetype = pmsg?.image?.mimetype;
+
+            // Tell the KV we are running, state RUNNING
+            kvValue = await getKV(userId + "." + jobId);
+            kvValue.state = "RUNNING";
+            await updateKV(userId + "." + jobId, kvValue);
+            console.log(" -> RUNNING PHASE ")
+
+            // Run the job
+            let resBuffer = await execute_model(blob)
+
+            // Store the Blob in the Object Store
+            let blob_name = jobId + "-output";
+            await storeBlob(blob_name, resBuffer);
+
+            // Tell the KV we are done, state DONE
+            kvValue = await getKV(userId + "." + jobId);
+            kvValue.state = "FINISHED";
+
+            const elapsedTime = process.hrtime(startTime);
+            const elapsedTimeInMs = elapsedTime[0] * 1000 + elapsedTime[1] / 1e6;
+
+            console.log(`Process elapsed time: ${elapsedTimeInMs} ms`);
+            kvValue.elapsedTime = elapsedTimeInMs;
+
+            await updateKV(userId + "." + jobId, kvValue);
+            console.log(" --> FINISHED PROCESSING JOB [" + jobId + "]");
+
+        } catch (e) {
+            console.log(" 🧨 ERROR: " + e);
+            let kvValue = await getKV(userId + "." + jobId);
+            kvValue.state = "ERROR";
+            kvValue.errorMsg = e;
+            await updateKV(userId + "." + jobId, kvValue);
+            console.log(" --> ENDED JOB ABRUPTLY [" + jobId + "]")
+            msg?.ack();
+        }
+    }
+
+    // console.log("Relaunch listener...")
+
 
 }
 
@@ -226,7 +268,7 @@ function saveFile(fileName, buf) {
 
 async function execute_model(blob) {
 
-    console.log("Running...")
+    console.log("Running model ...")
 
     // Convierte el blob a un objeto de imagen
     // const imageUrl = await blobUtil.createObjectURL(blob);
@@ -305,15 +347,15 @@ async function runFromFile() {
 /* -------- NATS OPERATIONS --------- */
 
 /* ---------------------------------- */
-async function putKV(key, value) {
+async function updateKV(key, value) {
     // Store in NATS KV
-    await statesKVService.put(key, JSON.stringify(value));
+    await statesKVService.update(key, JSON.stringify(value));
 }
 
 async function getKV(key) {
     // Get from NATS KV
     let entry = await statesKVService.get(key);
-    console.log(`KV get Op: ${entry?.key} @ ${entry?.revision} -> ${entry?.string()}`);
+    // console.log(`KV get Op: ${entry?.key} @ ${entry?.revision} -> ${entry?.string()}`);
 
     return JSON.parse(entry?.string());
 
@@ -343,7 +385,7 @@ async function kvTest() {
     }
 
     let key = exampleJson.user + "." + exampleJson.jobId;
-    await putKV(key, exampleJson);
+    await updateKV(key, exampleJson);
     let result = await getKV(key);
 
     console.log("📣 KV test done.")

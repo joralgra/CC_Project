@@ -1,6 +1,6 @@
 import { natsWrapper } from '../../../config/nats-wrapper';
 
-const jobListByUser = async (user: string) => {
+const jobListByUser = async (user: string | string[] | undefined) => {
   const nc = natsWrapper.client;
   const js = nc.jetstream();
   const kv = await js.views.kv('jobState');

@@ -31,7 +31,7 @@ services:
     links:
       - nats1
     environment:
-      - NATS_URI=nats://nats:4222
+      - NATS_URI=nats://nats1:4222
     depends_on:
       - nats1
     ports:
@@ -48,7 +48,7 @@ services:
     links:
       - nats1
     environment:
-      - NATS_URI=nats://nats:4222
+      - NATS_URI=nats://nats1:4222
     depends_on:
       - nats1
     networks:

@@ -12,8 +12,8 @@ export const queryJob = async (req: Request, res: Response): Promise<Response> =
   const action = 'Question status of job';
   const start = new Date().getTime();
   const jobId = req.params.id;
-  // const user = req.headers['x-forwarded-user'];
-  const user = 'FernandoJSR5';
+  const user = req.headers['x-forwarded-user'];
+  // const user = 'FernandoJSR5';
   const email = req.headers['x-forwarded-email'];
 
   const childLogger = logger.child({

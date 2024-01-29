@@ -7,8 +7,6 @@ npm install
 node worker.js
 ```
 
-
-
 ## To deploy
 
 
@@ -59,3 +57,10 @@ Example of a job:
 *data*
 Entradas con nombre job_id+"-input" job_id+"-output"
 
+
+# TODO LIST
+
+- [ ] Mécanismo códiger job 1 a 1
+- [ ] Mécanismo quedarse escuchando siempre a trabajos hasta que se tire el worker
+- [ ] Escuchar cola de escalado del observer y si escuchas DOWN parar el worker
+- [ ] Aseguro que el worker y el frontenden el worker compose

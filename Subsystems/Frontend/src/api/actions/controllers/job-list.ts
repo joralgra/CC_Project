@@ -11,8 +11,8 @@ interface Result {
 export const jobList = async (req: Request, res: Response): Promise<Response> => {
   const action = 'job list by user';
   const start = new Date().getTime();
-  // const user = req.headers['x-forwarded-user'];
-  const user = 'FernandoJSR5';
+  const user = req.headers['x-forwarded-user'];
+  // const user = 'FernandoJSR5';
   const email = req.headers['x-forwarded-email'];
 
   const childLogger = logger.child({

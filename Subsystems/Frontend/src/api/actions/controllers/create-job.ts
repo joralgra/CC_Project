@@ -8,12 +8,14 @@ export const createJob = async (req: Request, res: Response): Promise<Response> 
   const action = 'Create Job';
   const start = new Date().getTime();
   const jobId = uuid();
-  // const user = req.headers['x-forwarded-user'];
-  const user = 'FernandoJSR5';
+  const user = req.headers['x-forwarded-user'];
+  // const user = 'FernandoJSR5';
   const email = req.headers['x-forwarded-email'];
 
   const files: any = req.files;
   const image = files.image;
+
+  console.log("User:", user);
 
   console.log(files);
 
@@ -28,6 +30,7 @@ export const createJob = async (req: Request, res: Response): Promise<Response> 
     message: 'Init message',
     responseTimeMS: Date.now() - start,
   });
+
   try {
     await ProducerService.sendJob({
       user,
