@@ -1,5 +1,4 @@
 import fs from 'fs';
-import { Empty } from 'nats';
 import path from 'path';
 import { natsWrapper } from '../../../config/nats-wrapper';
 interface Data {
@@ -13,8 +12,6 @@ const sendJob = async (data: Data) => {
   const nc = natsWrapper.client;
   const js = nc.jetstream();
   const jsm = await nc.jetstreamManager();
-
-  // await jsm.streams.add({ name: 'QueueStream', subjects: ['observer', 'job'] });
 
   const os = await js.views.os('data');
   const kv = await js.views.kv('jobState');
@@ -46,7 +43,8 @@ const sendJob = async (data: Data) => {
       blob
     );
 
-    let msg = await js.publish('subjectJob',
+    let msg = await js.publish(
+      'subjectJob',
       JSON.stringify({
         user,
         jobId,
