@@ -1,7 +1,7 @@
 # About the project
 
 Project for an UPV Master on High performance computing assigment.
-Evaluates the expression of faces using the faceapi ssdMobilenetv1. Communication made with NATS pub/sub + NATS KV and
+Evaluates the expression of faces using the faceapi ssdMobilenetv1. Communication made with NATS Queue Stream + NATS KV and
 NATS Object Store.
 
 ![img.png](img.png)
