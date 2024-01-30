@@ -44,77 +44,66 @@ const minFaceSize = 50;
 const scaleFactor = 0.8;
 
 (async function () {
-    console.log("🎇⏳ Loading weights...")
-    // load weights
-    await faceDetectionNet.loadFromDisk(path.join(__dirname, './weights'))
-    await faceapi.nets.faceLandmark68Net.loadFromDisk(path.join(__dirname, './weights'))
-    await faceapi.nets.faceExpressionNet.loadFromDisk(path.join(__dirname, './weights'))
-    await faceapi.nets.ageGenderNet.loadFromDisk(path.join(__dirname, './weights'))
-    await faceapi.nets.ssdMobilenetv1.loadFromDisk(path.join(__dirname, './weights'))
-    await faceapi.nets.faceRecognitionNet.loadFromDisk(path.join(__dirname, './weights'))
-    console.log("🎇🟢 Weights loaded")
+        console.log("🎇⏳ Loading weights...")
+        // load weights
+        await faceDetectionNet.loadFromDisk(path.join(__dirname, './weights'))
+        await faceapi.nets.faceLandmark68Net.loadFromDisk(path.join(__dirname, './weights'))
+        await faceapi.nets.faceExpressionNet.loadFromDisk(path.join(__dirname, './weights'))
+        await faceapi.nets.ageGenderNet.loadFromDisk(path.join(__dirname, './weights'))
+        await faceapi.nets.ssdMobilenetv1.loadFromDisk(path.join(__dirname, './weights'))
+        await faceapi.nets.faceRecognitionNet.loadFromDisk(path.join(__dirname, './weights'))
+        console.log("🎇🟢 Weights loaded")
 
-    console.log(" 🎇⏳ Connecting to NATS...")
-    // Connections to NATS
-    const NATS_URI = process.env.NATS_URI;
+        console.log(" 🎇⏳ Connecting to NATS...")
+        // Connections to NATS
+        const NATS_URI = process.env.NATS_URI;
 
-    // const NATS_URI = "nats://127.0.0.1:4222";
+        // const NATS_URI = "nats://127.0.0.1:4222";
 
-    console.log("@ -> " + NATS_URI)
+        console.log("@ -> " + NATS_URI)
 
-    nc = await nats.connect({servers: [NATS_URI], json: true});
+        nc = await nats.connect({servers: [NATS_URI], json: true});
 
-    js = nc.jetstream();
+        js = nc.jetstream();
 
-    const NAME = "workQueueStream";
-    const SUBJECT = "subjectJob";
-    const SUBJECT_OBS = "subjectObserver";
+        const WORK_QUEUE = 'workQueueStream';
+        const OBS_QUEUE = 'observerQueueStream';
+        const WORK_SUBJECT = 'subjectJob';
+        const OBS_SUBJECT = 'subjectObserver';
 
-    const jsm = await nc.jetstreamManager()
+        const jsm = await nc.jetstreamManager()
 
+        // sub = nc.subscribe("job", {queue: "job"});
+        try {
+            c2 = await js.consumers.get(WORK_QUEUE, WORK_SUBJECT);
+            cObs = await js.consumers.get(OBS_QUEUE, OBS_SUBJECT);
+        } catch (e) {
+            console.log("🧨 ERROR: " + e);
+            console.log(" 🎇⏳ Creating consumers...")
 
-    try {
-
-        streamName = await jsm.streams.find(SUBJECT);
-
-    } catch (e) {
-        console.log(e);
-        // await jsm.streams.add({name: NAME, subjects: [SUBJECT]});
-        await jsm.streams.add({
-            name: NAME,
-            retention: RetentionPolicy.Workqueue,
-            subjects: [SUBJECT, SUBJECT_OBS],
-        });
-
-        await jsm.consumers.add(
-            streamName, {
+            await jsm.consumers.add(WORK_QUEUE, {
                 ack_policy: AckPolicy.Explicit,
-                durable_name: SUBJECT,
-                filter_subject: SUBJECT+".>"
+                durable_name: WORK_SUBJECT,
+                // filter_subject: `${WORK_SUBJECT}`,
+            });
+            await jsm.consumers.add(OBS_QUEUE, {
+                ack_policy: AckPolicy.Explicit,
+                durable_name: OBS_SUBJECT,
+                // filter_subject: `${OBS_SUBJECT}`,
             });
 
-        await jsm.consumers.add(
-            streamName, {
-                ack_policy: AckPolicy.Explicit,
-                durable_name: SUBJECT_OBS,
-                filter_subject: SUBJECT_OBS+".>"
-            });
+            c2 = await js.consumers.get(WORK_QUEUE, WORK_SUBJECT);
+            cObs = await js.consumers.get(OBS_QUEUE, OBS_SUBJECT);
+            console.log(" 🎇🟢 Consumers created");
+        }
 
-        streamName = await jsm.streams.find(SUBJECT);
-        console.log("Stream wasn't created please restart service.")
-    }
+        objStoreService = await js.views.os("data");
+        statesKVService = await js.views.kv("jobState");
+        logsKVService = await js.views.kv("logs");
 
-    // sub = nc.subscribe("job", {queue: "job"});
-    c2 = await js.consumers.get(NAME, SUBJECT);
-    cObs = await js.consumers.get(NAME, SUBJECT_OBS);
+        console.log(" 🎇🟢 Connected to NATS")
 
-    objStoreService = await js.views.os("data");
-    statesKVService = await js.views.kv("jobState");
-    logsKVService = await js.views.kv("logs");
-
-    console.log(" 🎇🟢 Connected to NATS")
-
-})().then(start_engine);
+    })().then(start_engine);
 
 const inputMsgExample = {
     user: "8cb2f9c7-2e9b-4bdc-9fe7-3d6a1a9a45e8",
@@ -130,13 +119,17 @@ const originalKvValue = {
     result: null
 }
 
-let isRunning= true;
+let isOperative = true;
 
 async function start_engine() {
 
     // Worker Engine loop
     console.log("  - - - STARTING WORKER - - -")
-    while (isRunning) {
+
+    while (isOperative) {
+
+        putKV("worker.uuid", new Date());
+        getKV("worket.*");
 
         let messages = await c2.fetch({max_messages: 1});
         // Convert the iterable to an array
@@ -155,17 +148,23 @@ async function start_engine() {
         console.log("Relaunch listener...")
 
     }
+
     console.log("  - - - FINISHING WORKER - - -")
 }
 
-async function check_system(obsMessages){
+async function check_system(obsMessages) {
+
     for await(const msg of obsMessages) {
-        let pmsg = Buffer.from(msg.data).toString();
-        if(pmsg === "DOWN"){
+        let pmsg = JSON.parse(Buffer.from(msg.data).toString());
+        if (pmsg.action === "DOWN") {
             msg.ack();
-            isRunning = false;
+            console.log("🔴 System is going down by observer request...")
+            // isRunning = false;
+        }else{
+            msg.ack();
         }
     }
+
 }
 
 async function compute_unit(messages) {
