@@ -38,6 +38,7 @@ const run = async () => {
         const jsm = await nc.jetstreamManager();
         const js = nc.jetstream();
         const kv = await js.views.kv('jobState');
+        const workerKVService = await js.views.kv("workerState");
 
         const streams = await jsm.streams.list().next();
         streams.forEach((stream) => {
@@ -81,6 +82,15 @@ const run = async () => {
             }
         })().then();
 
+        const watchWorker = await workerKVService.watch();
+        (async () => {
+            for await (const e of watchWorker) {
+                const worker = JSON.parse(sc.decode(e.value));
+                console.log("👷‍♂️", worker)
+
+            }
+        })().then();
+
         schedule.scheduleJob(`*/${SCHEDULE_TIME} * * * *`, async () => {
 
             try {
@@ -89,6 +99,7 @@ const run = async () => {
                 const nowTime = new Date(serviceInfo.ts);
                 const numPendingJobs = serviceInfo.num_pending;
                 const timeSinceLastConsumed = nowTime - lastConsumedTime;
+
                 // const numConsumers
 
                 const avgResponseTime =
@@ -108,6 +119,9 @@ const run = async () => {
                         console.log("🏝☂ Nothing to do")
                     }
                 } else {
+
+
+
                     /**
                      * timeSinceLastConsumed == Diferencia entre ahora y el último trabajo cógido por el consumidor.
                      *

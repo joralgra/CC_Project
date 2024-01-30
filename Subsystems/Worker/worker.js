@@ -27,7 +27,7 @@ let sub = null;
 let js = null;
 let objStoreService = null;
 let statesKVService = null;
-let logsKVService = null;
+let workerKVService = null;
 let c2 = null;
 let cObs = null;
 let streamName = null;
@@ -99,7 +99,7 @@ const scaleFactor = 0.8;
 
         objStoreService = await js.views.os("data");
         statesKVService = await js.views.kv("jobState");
-        logsKVService = await js.views.kv("logs");
+        workerKVService = await js.views.kv("workerState");
 
         console.log(" 🎇🟢 Connected to NATS")
 
@@ -123,13 +123,15 @@ let isOperative = true;
 
 async function start_engine() {
 
+    let worker_nuid = nuid.next();
+
     // Worker Engine loop
     console.log("  - - - STARTING WORKER - - -")
 
     while (isOperative) {
 
-        putKV("worker.uuid", new Date());
-        getKV("worket.*");
+        // Last Alive
+        putKVWorkerState("worker." + worker_nuid, JSON.stringify(new Date()));
 
         let messages = await c2.fetch({max_messages: 1});
         // Convert the iterable to an array
@@ -159,7 +161,7 @@ async function check_system(obsMessages) {
         if (pmsg.action === "DOWN") {
             msg.ack();
             console.log("🔴 System is going down by observer request...")
-            // isRunning = false;
+            // isOperative = false;
         }else{
             msg.ack();
         }
@@ -349,6 +351,11 @@ async function runFromFile() {
 async function updateKV(key, value) {
     // Store in NATS KV
     await statesKVService.update(key, JSON.stringify(value));
+}
+
+async function putKVWorkerState(key, value) {
+    // Store in Worker State NATS KV
+    await workerKVService.put(key, value);
 }
 
 async function getKV(key) {
