@@ -8,7 +8,7 @@
     "main": "nodemon observer.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Fernando Salazar",
+  "author": "Fernando Salazar - Guillermo Ato -- Jordi Almendros",
   "license": "ISC",
   "dependencies": {
     "fastify": "^4.25.2",

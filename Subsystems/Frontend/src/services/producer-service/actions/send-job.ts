@@ -1,5 +1,7 @@
 import fs from 'fs';
+import { nuid } from 'nats';
 import path from 'path';
+import { workSubject } from '../../../config/env';
 import { natsWrapper } from '../../../config/nats-wrapper';
 interface Data {
   user: string | string[] | undefined;
@@ -8,7 +10,8 @@ interface Data {
 }
 
 const sendJob = async (data: Data) => {
-  const { user, jobId, image } = data;
+  const { user, image } = data;
+  const jobId = nuid.next();
   const nc = natsWrapper.client;
   const js = nc.jetstream();
   const jsm = await nc.jetstreamManager();
@@ -44,7 +47,7 @@ const sendJob = async (data: Data) => {
     );
 
     let msg = await js.publish(
-      'subjectJob',
+      workSubject,
       JSON.stringify({
         user,
         jobId,
