@@ -1,19 +1,19 @@
 import Fastify from 'fastify';
-import {AckPolicy, RetentionPolicy, StringCodec, connect} from 'nats';
+import { RetentionPolicy, StringCodec, connect } from 'nats';
 import schedule from 'node-schedule';
 
 const app = Fastify({
-    logger: false,
+  logger: false,
 });
 
-const uri = 'nats://localhost:4222';
+const uri = process.env.NATS_URI;
 
-const PORT = 5000;
+const PORT = process.env.PORT;
 const sc = StringCodec();
 const MAX_WATING_TIME_SLEEP_MS = 120000;
 const SCALE_UP = 'UP';
 const SCALE_DOWM = 'DOWN';
-const SCHEDULE_TIME = 3;
+const SCHEDULE_TIME = 5;
 const WORK_QUEUE = 'workQueueStream';
 const OBS_QUEUE = 'observerQueueStream';
 const WORK_SUBJECT = 'subjectJob';
@@ -23,139 +23,118 @@ const STATE = 'FINISHED';
 let elapsedTimes = [];
 
 const run = async () => {
-    try {
+  try {
+    app.listen({ port: PORT }, (error, address) => {
+      if (error) throw error;
+      console.log(`Server is now listening on ${address}`);
+    });
 
-        app.listen({port: PORT}, (error, address) => {
-            if (error) throw error;
-            console.log(`Server is now listening on ${address}`);
-        });
+    const nc = await connect({
+      servers: [uri],
+    });
+    console.log(` 🔌connected to nats in server ${nc.getServer()} 🔌`);
 
-        const nc = await connect({
-            servers: [uri],
-        });
-        console.log(` 🔌connected to nats in server ${nc.getServer()} 🔌`);
+    const jsm = await nc.jetstreamManager();
+    const js = nc.jetstream();
+    const kv = await js.views.kv('jobState');
+    const wkv = await js.views.kv('workerState');
 
-        const jsm = await nc.jetstreamManager();
-        const js = nc.jetstream();
-        const kv = await js.views.kv('jobState');
-        const workerKVService = await js.views.kv("workerState");
+    const streams = await jsm.streams.list().next();
+    streams.forEach((stream) => {
+      console.log(stream);
+      if (stream.config.name === OBS_QUEUE) {
+        QUEUE_EXISTS = true;
+      }
+    });
 
-        const streams = await jsm.streams.list().next();
-        streams.forEach((stream) => {
-            console.log(stream);
-            if (stream.config.name === OBS_QUEUE) {
-                QUEUE_EXISTS = true;
-            }
-        });
-
-        if (!QUEUE_EXISTS) {
-            await jsm.streams.add({
-                name: OBS_QUEUE,
-                retention: RetentionPolicy.Workqueue,
-                subjects: [OBS_SUBJECT],
-            });
-        }
-
-        // await jsm.consumers.add(WORK_QUEUE, {
-        //   ack_policy: AckPolicy.Explicit,
-        //   durable_name: 'A',
-        //   filter_subject: `${WORK_SUBJECT}`,
-        // });
-
-        // const c = await js.consumers.get(WORK_QUEUE, ci.name);
-
-        // const c2 = await js.consumers.get(WORK_QUEUE, 'A');
-
-        // let iter = await c2.fetch({ max_messages: 3 });
-        // for await (const m of iter) {
-        //   console.log(m.subject);
-        //   m.ack();
-        // }
-
-        const watch = await kv.watch();
-        (async () => {
-            for await (const e of watch) {
-                const job = JSON.parse(sc.decode(e.value));
-                if (job.state === STATE) {
-                    elapsedTimes.push(job.elapsedTime);
-                }
-            }
-        })().then();
-
-        const watchWorker = await workerKVService.watch();
-        (async () => {
-            for await (const e of watchWorker) {
-                const worker = JSON.parse(sc.decode(e.value));
-                console.log("👷‍♂️", worker)
-
-            }
-        })().then();
-
-        schedule.scheduleJob(`*/${SCHEDULE_TIME} * * * *`, async () => {
-
-            try {
-                const serviceInfo = await jsm.consumers.info(WORK_QUEUE, WORK_SUBJECT);
-                const lastConsumedTime = new Date(serviceInfo.ack_floor.last_active);
-                const nowTime = new Date(serviceInfo.ts);
-                const numPendingJobs = serviceInfo.num_pending;
-                const timeSinceLastConsumed = nowTime - lastConsumedTime;
-
-                // const numConsumers
-
-                const avgResponseTime =
-                    elapsedTimes.reduce((a, b) => a + b, 0) / elapsedTimes.length;
-
-                if (numPendingJobs > 0) {
-                    /**
-                     * timeSinceLastConsumed == Diferencia entre ahora y el último trabajo cógido por el consumidor.
-                     *
-                     * avgResponseTime == Tiemp./o medio de procesamiento de los trabajos
-                     * (total con escritura/lectura en kv / objstorage)
-                     */
-                    if (timeSinceLastConsumed > avgResponseTime) {
-                        console.log(SCALE_UP);
-                        publishMessage(SCALE_UP, js, nowTime);
-                    }else{
-                        console.log("🏝☂ Nothing to do")
-                    }
-                } else {
-
-
-
-                    /**
-                     * timeSinceLastConsumed == Diferencia entre ahora y el último trabajo cógido por el consumidor.
-                     *
-                     * MAX_WATING_TIME_SLEEP_MS == Tiempo máximo de tiempo de trabajo ocioso
-                     */
-                    if (timeSinceLastConsumed > MAX_WATING_TIME_SLEEP_MS ) {
-                        console.log(SCALE_DOWM);
-                        publishMessage(SCALE_DOWM, js, nowTime);
-                    }else{
-                        console.log("🏝☂ Nothing to do")
-                    }
-                }
-
-                elapsedTimes = [];
-            } catch (error) {
-                console.log(`❌ ${error} ❌`);
-            }
-        });
-
-    } catch (error) {
-        console.log(`❌ ${error} ❌`);
+    if (!QUEUE_EXISTS) {
+      await jsm.streams.add({
+        name: OBS_QUEUE,
+        retention: RetentionPolicy.Workqueue,
+        subjects: [OBS_SUBJECT],
+      });
     }
+
+    const watch = await kv.watch();
+    (async () => {
+      for await (const e of watch) {
+        const job = JSON.parse(sc.decode(e.value));
+        if (job.state === STATE) {
+          elapsedTimes.push(job.elapsedTime);
+        }
+      }
+    })().then();
+
+    schedule.scheduleJob(`*/${SCHEDULE_TIME} * * * *`, async () => {
+      try {
+        const avgResponseTime =
+          elapsedTimes.reduce((a, b) => a + b, 0) / elapsedTimes.length;
+
+        console.info(
+          `⏳📉 The average response time of executed jobs each five minutes is ${Math.floor(
+            (avgResponseTime / 1000) % 60
+          )} seconds 📉⏳`
+        );
+
+        elapsedTimes = [];
+        const consumerInfo = await jsm.consumers.info(WORK_QUEUE, WORK_SUBJECT);
+        const lastConsumedTime = new Date(consumerInfo.ack_floor.last_active);
+        const currentTime = new Date(consumerInfo.ts);
+        const numPendingJobs = consumerInfo.num_pending;
+        const iter = await wkv.history({ key: `worker.*` });
+
+        if (numPendingJobs > 0) {
+          let workersOverflowed = 0;
+
+          const workersStimated = Math.round(numPendingJobs / 10);
+
+          for await (const e of iter) {
+            const worker = e.json();
+            const lastAckTime = new Date(worker.time);
+
+            if (currentTime - lastAckTime > avgResponseTime) {
+              workersOverflowed++;
+            }
+          }
+
+          const numWorkers = iter.getProcessed();
+          if (numWorkers - workersOverflowed < workersStimated) {
+            await publishMessage(
+              {
+                action: SCALE_UP,
+                time: currentTime,
+                numWorkers: workersStimated - (numWorkers - workersOverflowed),
+              },
+              js
+            );
+          } else {
+            console.log('🏝 Nothing to do 🌊');
+          }
+        } else {
+          for await (const e of iter) {
+            const worker = e.json();
+            const lastAckTime = new Date(worker.time);
+            const id = worker.id;
+
+            if (lastConsumedTime - lastAckTime > MAX_WATING_TIME_SLEEP_MS) {
+              await publishMessage({ id, action: SCALE_DOWM, time: currentTime }, js);
+            } else {
+              console.log('🏝 Nothing to do 🌊');
+            }
+          }
+        }
+      } catch (error) {
+        console.log(`❌ ${error} ❌`);
+      }
+    });
+  } catch (error) {
+    console.log(`❌ ${error} ❌`);
+  }
 };
 
 run();
 
-const publishMessage = async (action, js, now) => {
-    let msg = await js.publish(
-        OBS_SUBJECT,
-        JSON.stringify({
-            now,
-            action,
-        })
-    );
-
-    console.log(`${msg.stream}[${msg.seq}]: duplicate? ${msg.duplicate}`);
+const publishMessage = async (obj, js) => {
+  let msg = await js.publish(OBS_SUBJECT, JSON.stringify(obj));
+  console.log(`${msg.stream}[${msg.seq}]: duplicate? ${msg.duplicate}`);
 };

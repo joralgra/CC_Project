@@ -17,3 +17,5 @@ export const requestLimit = env.get('REQUEST_LIMIT').required().asString();
 export const swaggerApiSpec = env.get('SWAGGER_API_SPEC').required().asString();
 export const logLevel = env.get('LOG_LEVEL').default('info').asString();
 export const appId = env.get('APP_ID').required().asString();
+export const workQueue = env.get('WORK_QUEUE').required().asString();
+export const workSubject = env.get('WORK_SUBJECT').required().asString();
