@@ -24,7 +24,7 @@ services:
       networks: 
         - nats
   frontend:
-    image: fernandojsr5/cc_frontend:latest
+    image: joralgra/cc_frontend:latest
     container_name: frontend_container
     restart: on-failure
     links:
@@ -40,7 +40,7 @@ services:
     networks: 
       - nats
   observer:
-    image: fernandojsr5/cc_observer:latest
+    image: joralgra/cc_observer:latest
     container_name: observer_container
     restart: on-failure
     links:
