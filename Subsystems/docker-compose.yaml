@@ -13,6 +13,7 @@ services:
         "--http-address=0.0.0.0:8080",
         "--skip-auth-regex=/forms/*",
         "--redirect-url=http://localhost:8080/oauth2/callback",
+        "--github-repo=joralgra/CC_Project",
         "--email-domain=*"
       ]
       restart: always
@@ -34,8 +35,6 @@ services:
       - NATS_URI=nats://nats1:4222
     depends_on:
       - nats1
-    ports:
-      - 3000:3000
     networks: 
       - nats
   observer:
@@ -58,18 +57,18 @@ services:
     networks: 
       - nats
   worker:
-    build:
-      context: ./Worker
-      dockerfile: Dockerfile
-    restart: on-failure
-    links:
-      - nats1
-    environment:
-      - NATS_URI=nats://nats1:4222
-    depends_on:
-      - nats1
-    networks:
-      - nats
+  build:
+  context: ./Worker
+  dockerfile: Dockerfile
+  restart: on-failure
+  links:
+  - nats1
+  environment:
+  - NATS_URI=nats://nats1:4222
+  depends_on:
+  - nats1
+  networks:
+  - nats
   nats1:
     container_name: nats1
     image: nats

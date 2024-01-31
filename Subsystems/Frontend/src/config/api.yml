@@ -28,6 +28,37 @@ paths:
           description: Error Response
           schema:
             '$ref': '#/definitions/ApiError'
+  /actions/config-observer:
+    post:
+      tags:
+        - Actions
+      description: It set parameters for observer.
+      consumes:
+        - application/json
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            required:
+              - maxSleepTime
+              - jobsForWorker
+            properties:
+              maxSleepTime:
+                type: number
+              jobsForWorker:
+                type: number
+
+      responses:
+        '200':
+          description: Success response
+          schema:
+            '$ref': '#/definitions/ApiResponse'
+        '500':
+          description: Error Response
+          schema:
+            '$ref': '#/definitions/ApiError'
   /actions/status-job/{id}:
     get:
       tags:
