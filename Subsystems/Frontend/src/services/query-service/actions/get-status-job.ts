@@ -13,6 +13,7 @@ const statusJobById = async (data: Data) => {
   const kv = await js.views.kv('jobState');
   const os = await js.views.os('data');
   let relativePath = null;
+  let elapsedTime = null;
 
   let entry = await kv.get(`${user}.${jobId}`);
 
@@ -33,6 +34,7 @@ const statusJobById = async (data: Data) => {
     const extension = jsonEntry.image.extension;
     const path = `./public/uploads/${jobId}.${extension}`;
     relativePath = `uploads/${jobId}.${extension}`;
+    elapsedTime = jsonEntry.elapsedTime;
 
     fs.writeFileSync(path, buffer);
   }
@@ -40,6 +42,7 @@ const statusJobById = async (data: Data) => {
   return {
     status,
     relativePath,
+    elapsedTime,
   };
 };
 

@@ -1,20 +1,14 @@
 import { Request, Response } from 'express';
 import logger from '../../../config/logger';
-import ProducerService from '../../../services/producer-service';
+import QueryService from '../../../services/query-service';
 import buildLegacyResponse from '../../utils/build-legacy-response';
 
-export const createJob = async (req: Request, res: Response): Promise<Response> => {
-  const action = 'Create Job';
+export const configObserver = async (req: Request, res: Response): Promise<Response> => {
+  const action = 'Set parameters for observer';
   const start = new Date().getTime();
-  const user = req.headers['x-forwarded-user'];
+  const user: any = req.headers['x-forwarded-user'];
   const email = req.headers['x-forwarded-email'];
-
-  const files: any = req.files;
-  const image = files.image;
-
-  console.log('User:', user);
-
-  console.log(files);
+  const { maxSleepTime, jobsForWorker } = req.body;
 
   const childLogger = logger.child({
     action,
@@ -23,15 +17,12 @@ export const createJob = async (req: Request, res: Response): Promise<Response> 
   childLogger.info({
     user,
     email,
-    message: 'Init message',
+    message: 'Init process to set parameters for observer',
     responseTimeMS: Date.now() - start,
   });
 
   try {
-    const jobId = await ProducerService.sendJob({
-      user,
-      image,
-    });
+    await QueryService.setParametersObserver({ maxSleepTime, jobsForWorker });
 
     childLogger.info({
       message: 'any message',
@@ -43,15 +34,12 @@ export const createJob = async (req: Request, res: Response): Promise<Response> 
     return res.status(200).json(
       buildLegacyResponse({
         status: 200,
-        description: 'Job was create successfully',
-        data: {
-          jobId,
-        },
+        description: 'Parameters were created successfully',
       })
     );
   } catch (error: any) {
     childLogger.info({
-      message: `Job was not sent to queue. ${error}`,
+      message: `Parameters weren´t not created. ${error}`,
       responseTimeMS: Date.now() - start,
       status: 500,
     });

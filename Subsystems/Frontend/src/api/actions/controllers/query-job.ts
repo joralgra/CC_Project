@@ -6,6 +6,7 @@ import buildLegacyResponse from '../../utils/build-legacy-response';
 interface Result {
   relativePath: string | null;
   status: string;
+  elapsedTime: string;
 }
 
 export const queryJob = async (req: Request, res: Response): Promise<Response> => {
@@ -13,7 +14,6 @@ export const queryJob = async (req: Request, res: Response): Promise<Response> =
   const start = new Date().getTime();
   const jobId = req.params.id;
   const user = req.headers['x-forwarded-user'];
-  // const user = 'FernandoJSR5';
   const email = req.headers['x-forwarded-email'];
 
   const childLogger = logger.child({
@@ -28,11 +28,12 @@ export const queryJob = async (req: Request, res: Response): Promise<Response> =
     responseTimeMS: Date.now() - start,
   });
   try {
-    const result: Result = await QueryService.statusJobById({
-      jobId,
-      user,
-      childLogger,
-    });
+    const { elapsedTime, relativePath, status }: Result =
+      await QueryService.statusJobById({
+        jobId,
+        user,
+        childLogger,
+      });
 
     childLogger.info({
       message: 'Question status of job was successfully',
@@ -48,11 +49,9 @@ export const queryJob = async (req: Request, res: Response): Promise<Response> =
         data: {
           user,
           jobId,
-          status: result.status,
-          url:
-            result.relativePath == null
-              ? ''
-              : `${req.get('host')}/${result.relativePath}`,
+          status,
+          elapsedTime: elapsedTime === null ? '' : `${elapsedTime} ms`,
+          url: relativePath === null ? '' : `${req.get('host')}/${relativePath}`,
         },
       })
     );
