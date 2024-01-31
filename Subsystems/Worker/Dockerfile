@@ -6,6 +6,8 @@ FROM node:20.3.1-slim
 # Move both package.json and package-lock.json
 COPY . .
 
+RUN apt update -y
+RUN apt install fontconfig -y
 RUN npm install -g npm@9.6.7
 RUN npm install
 
