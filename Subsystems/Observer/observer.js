@@ -10,10 +10,10 @@ const uri = process.env.NATS_URI;
 
 const PORT = process.env.PORT;
 const sc = StringCodec();
-const MAX_WATING_TIME_SLEEP_MS = 120000;
+const MAX_WATING_TIME_SLEEP_MS = 60000;
 const SCALE_UP = 'UP';
 const SCALE_DOWM = 'DOWN';
-const SCHEDULE_TIME = 5;
+const SCHEDULE_TIME = 1;
 const WORK_QUEUE = 'workQueueStream';
 const OBS_QUEUE = 'observerQueueStream';
 const WORK_SUBJECT = 'subjectJob';
@@ -71,7 +71,7 @@ const run = async () => {
           elapsedTimes.reduce((a, b) => a + b, 0) / elapsedTimes.length;
 
         console.info(
-          `⏳📉 The average response time of executed jobs each five minutes is ${Math.floor(
+          `⏳📉 For this last five minutes, the average response time of executed jobs is ${Math.floor(
             (avgResponseTime / 1000) % 60
           )} seconds 📉⏳`
         );
@@ -90,7 +90,7 @@ const run = async () => {
 
           for await (const e of iter) {
             const worker = e.json();
-            const lastAckTime = new Date(worker.time);
+            const lastAckTime = new Date(worker.last_time_executed);
 
             if (currentTime - lastAckTime > avgResponseTime) {
               workersOverflowed++;
@@ -99,6 +99,7 @@ const run = async () => {
 
           const numWorkers = iter.getProcessed();
           if (numWorkers - workersOverflowed < workersStimated) {
+
             await publishMessage(
               {
                 action: SCALE_UP,
@@ -113,7 +114,7 @@ const run = async () => {
         } else {
           for await (const e of iter) {
             const worker = e.json();
-            const lastAckTime = new Date(worker.time);
+            const lastAckTime = new Date(worker.last_time_executed);
             const id = worker.id;
 
             if (lastConsumedTime - lastAckTime > MAX_WATING_TIME_SLEEP_MS) {
@@ -135,6 +136,8 @@ const run = async () => {
 run();
 
 const publishMessage = async (obj, js) => {
+  console.log('🎊 Scaling ' + obj.action + ' ');
+  console.log(obj);
   let msg = await js.publish(OBS_SUBJECT, JSON.stringify(obj));
   console.log(`${msg.stream}[${msg.seq}]: duplicate? ${msg.duplicate}`);
 };

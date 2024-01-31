@@ -44,66 +44,66 @@ const minFaceSize = 50;
 const scaleFactor = 0.8;
 
 (async function () {
-        console.log("🎇⏳ Loading weights...")
-        // load weights
-        await faceDetectionNet.loadFromDisk(path.join(__dirname, './weights'))
-        await faceapi.nets.faceLandmark68Net.loadFromDisk(path.join(__dirname, './weights'))
-        await faceapi.nets.faceExpressionNet.loadFromDisk(path.join(__dirname, './weights'))
-        await faceapi.nets.ageGenderNet.loadFromDisk(path.join(__dirname, './weights'))
-        await faceapi.nets.ssdMobilenetv1.loadFromDisk(path.join(__dirname, './weights'))
-        await faceapi.nets.faceRecognitionNet.loadFromDisk(path.join(__dirname, './weights'))
-        console.log("🎇🟢 Weights loaded")
+    console.log("🎇⏳ Loading weights...")
+    // load weights
+    await faceDetectionNet.loadFromDisk(path.join(__dirname, './weights'))
+    await faceapi.nets.faceLandmark68Net.loadFromDisk(path.join(__dirname, './weights'))
+    await faceapi.nets.faceExpressionNet.loadFromDisk(path.join(__dirname, './weights'))
+    await faceapi.nets.ageGenderNet.loadFromDisk(path.join(__dirname, './weights'))
+    await faceapi.nets.ssdMobilenetv1.loadFromDisk(path.join(__dirname, './weights'))
+    await faceapi.nets.faceRecognitionNet.loadFromDisk(path.join(__dirname, './weights'))
+    console.log("🎇🟢 Weights loaded")
 
-        console.log(" 🎇⏳ Connecting to NATS...")
-        // Connections to NATS
-        const NATS_URI = process.env.NATS_URI;
+    console.log(" 🎇⏳ Connecting to NATS...")
+    // Connections to NATS
+    const NATS_URI = process.env.NATS_URI;
 
-        // const NATS_URI = "nats://127.0.0.1:4222";
+    // const NATS_URI = "nats://127.0.0.1:4222";
 
-        console.log("@ -> " + NATS_URI)
+    console.log("@ -> " + NATS_URI)
 
-        nc = await nats.connect({servers: [NATS_URI], json: true});
+    nc = await nats.connect({servers: [NATS_URI], json: true});
 
-        js = nc.jetstream();
+    js = nc.jetstream();
 
-        const WORK_QUEUE = 'workQueueStream';
-        const OBS_QUEUE = 'observerQueueStream';
-        const WORK_SUBJECT = 'subjectJob';
-        const OBS_SUBJECT = 'subjectObserver';
+    const WORK_QUEUE = 'workQueueStream';
+    const OBS_QUEUE = 'observerQueueStream';
+    const WORK_SUBJECT = 'subjectJob';
+    const OBS_SUBJECT = 'subjectObserver';
 
-        const jsm = await nc.jetstreamManager()
+    const jsm = await nc.jetstreamManager()
 
-        // sub = nc.subscribe("job", {queue: "job"});
-        try {
-            c2 = await js.consumers.get(WORK_QUEUE, WORK_SUBJECT);
-            cObs = await js.consumers.get(OBS_QUEUE, OBS_SUBJECT);
-        } catch (e) {
-            console.log("🧨 ERROR: " + e);
-            console.log(" 🎇⏳ Creating consumers...")
+    // sub = nc.subscribe("job", {queue: "job"});
+    try {
+        c2 = await js.consumers.get(WORK_QUEUE, WORK_SUBJECT);
+        cObs = await js.consumers.get(OBS_QUEUE, OBS_SUBJECT);
+    } catch (e) {
+        console.log("🧨 ERROR: " + e);
+        console.log(" 🎇⏳ Creating consumers...")
 
-            await jsm.consumers.add(WORK_QUEUE, {
-                ack_policy: AckPolicy.Explicit,
-                durable_name: WORK_SUBJECT,
-                // filter_subject: `${WORK_SUBJECT}`,
-            });
-            await jsm.consumers.add(OBS_QUEUE, {
-                ack_policy: AckPolicy.Explicit,
-                durable_name: OBS_SUBJECT,
-                // filter_subject: `${OBS_SUBJECT}`,
-            });
+        // await jsm.consumers.add(WORK_QUEUE, {
+        //     ack_policy: AckPolicy.Explicit,
+        //     durable_name: WORK_SUBJECT,
+        //     // filter_subject: `${WORK_SUBJECT}`,
+        // });
+        await jsm.consumers.add(OBS_QUEUE, {
+            ack_policy: AckPolicy.Explicit,
+            durable_name: OBS_SUBJECT,
+            // filter_subject: `${OBS_SUBJECT}`,
+        });
 
-            c2 = await js.consumers.get(WORK_QUEUE, WORK_SUBJECT);
-            cObs = await js.consumers.get(OBS_QUEUE, OBS_SUBJECT);
-            console.log(" 🎇🟢 Consumers created");
-        }
+        // c2 = await js.consumers.get(WORK_QUEUE, WORK_SUBJECT);
+        cObs = await js.consumers.get(OBS_QUEUE, OBS_SUBJECT);
+        console.log(" 🎇🟢 Consumers created");
+    }
 
-        objStoreService = await js.views.os("data");
-        statesKVService = await js.views.kv("jobState");
-        workerKVService = await js.views.kv("workerState");
+    objStoreService = await js.views.os("data");
+    statesKVService = await js.views.kv("jobState");
+    workerKVService = await js.views.kv("workerState");
 
-        console.log(" 🎇🟢 Connected to NATS")
+    console.log(" 🎇🟢 Connected to NATS")
 
-    })().then(start_engine);
+})().then(start_engine);
 
 const inputMsgExample = {
     user: "8cb2f9c7-2e9b-4bdc-9fe7-3d6a1a9a45e8",
@@ -124,29 +124,31 @@ let isOperative = true;
 async function start_engine() {
 
     let worker_nuid = nuid.next();
-
+    let workerKVkey = "worker." + worker_nuid;
     // Worker Engine loop
     console.log("  - - - STARTING WORKER - - -")
 
     while (isOperative) {
 
         // Last Alive
-        putKVWorkerState("worker." + worker_nuid, JSON.stringify(new Date()));
+        // let wkv = await getKVWorkerState(workerKVkey)
+        // wkv.alive_time = new Date();
+        // putKVWorkerState(workerKVkey, JSON.stringify(wkv));
 
         let messages = await c2.fetch({max_messages: 1});
         // Convert the iterable to an array
         // let count = 0;
         // for await(const msg of messages) count++; // What a shitty way, but this is a shitty iterable
         // console.log("✉ Received " + (count > 0? "a": "no") + " message.")
-        await compute_unit(messages);
+        await compute_unit(messages, worker_nuid);
 
         await millis(1000);
 
-        let obsMessages = await cObs.fetch({max_messages: 1});
+        let obsMessages = await cObs.fetch({max_messages: -1});
         // count = 0;
         // for await(const msg of messages) count++; // What a shitty way, but this is a shitty iterable
         // console.log("💌 Received " + (count > 0? "a": "no") + " observer message.")
-        await check_system(obsMessages);
+        await check_system(obsMessages, workerKVkey, worker_nuid);
         console.log("Relaunch listener...")
 
     }
@@ -154,28 +156,44 @@ async function start_engine() {
     console.log("  - - - FINISHING WORKER - - -")
 }
 
-async function check_system(obsMessages) {
+async function check_system(obsMessages, thisworkerKV_Key, worker_id) {
 
     for await(const msg of obsMessages) {
+
         let pmsg = JSON.parse(Buffer.from(msg.data).toString());
+
+        if (pmsg.id !== worker_id) continue;
+
         if (pmsg.action === "DOWN") {
+
             msg.ack();
             console.log("🔴 System is going down by observer request...")
+            deleteKVWorkerState(thisworkerKV_Key);
+            process.exitCode = 0
+            process.exit();
             // isOperative = false;
-        }else{
-            msg.ack();
+        } else {
+            // msg.ack();
+            continue;
         }
     }
 
 }
 
-async function compute_unit(messages) {
+async function compute_unit(messages,workerKVkey,worker_nuid) {
 
     for await(const msg of messages) {
 
         try {
+            putKVWorkerState(workerKVkey, JSON.stringify({
+                // alive_time: new Date(),
+                id: worker_nuid,
+                last_time_executed: new Date()
+            }));
+
             msg.ack();
             console.log("🟢 Processing job...")
+
             const startTime = process.hrtime();
 
             // Realiza alguna tarea que quieres medir
@@ -195,7 +213,11 @@ async function compute_unit(messages) {
             let kvValue = await getKV(userId + "." + jobId);
             kvValue.state = "PENDING";
             kvValue.startTime = new Date().toISOString();
+            kvValue.workerId = worker_nuid;
             await updateKV(userId + "." + jobId, kvValue);
+
+
+
             console.log(" -> PENDING PHASE ")
 
             // Get the Blob from the Object Store
@@ -353,10 +375,23 @@ async function updateKV(key, value) {
     await statesKVService.update(key, JSON.stringify(value));
 }
 
+
+async function getKVWorkerState(key) {
+    let entry = await workerKVService.get(key);
+    // console.log(`KV get Op: ${entry?.key} @ ${entry?.revision} -> ${entry?.string()}`);
+
+    return JSON.parse(entry?.string());
+}
 async function putKVWorkerState(key, value) {
     // Store in Worker State NATS KV
     await workerKVService.put(key, value);
 }
+
+async function deleteKVWorkerState(key) {
+    // Store in Worker State NATS KV
+    await workerKVService.delete(key);
+}
+
 
 async function getKV(key) {
     // Get from NATS KV

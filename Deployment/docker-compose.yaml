@@ -23,9 +23,7 @@ services:
       networks: 
         - nats
   frontend:
-    build:
-      context: ./Frontend
-      dockerfile: Dockerfile
+    image: fernandojsr5/cc_frontend:latest
     container_name: frontend_container
     restart: on-failure
     links:
@@ -41,9 +39,7 @@ services:
     networks: 
       - nats
   observer:
-    build:
-      context: ./Observer
-      dockerfile: Dockerfile
+    image: fernandojsr5/cc_observer:latest
     container_name: observer_container
     restart: on-failure
     links:
@@ -60,9 +56,7 @@ services:
     networks: 
       - nats
   worker:
-    build:
-      context: ./Worker
-      dockerfile: Dockerfile
+    image: joralgra/cc_worker:latest
     restart: on-failure
     links:
       - nats1

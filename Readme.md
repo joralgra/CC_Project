@@ -23,6 +23,7 @@ TODO - Using docker compose? And then migrate to Kubernetes / Kumori?
 ```bash
 docker compose up --build -d -f subsystems/docker-compose.yaml
 ```
+Accesible
 
 # Run (Vía MiniKube)
 
