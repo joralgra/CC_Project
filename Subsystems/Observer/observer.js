@@ -14,7 +14,7 @@ let MAX_WATING_TIME_SLEEP_MS = 60000;
 let ESTIMATED_JOBS_FOR_WORKER = 10;
 const SCALE_UP = 'UP';
 const SCALE_DOWM = 'DOWN';
-const SCHEDULE_TIME = 1;
+const SCHEDULE_TIME = 5;
 const WORK_QUEUE = 'workQueueStream';
 const OBS_QUEUE = 'observerQueueStream';
 const WORK_SUBJECT = 'subjectJob';
@@ -104,12 +104,9 @@ const run = async () => {
         elapsedTimes = [];
 
         const consumerInfo = await jsm.consumers.info(WORK_QUEUE, WORK_SUBJECT);
-        // const lastConsumedTime = new Date(consumerInfo.ack_floor.last_active);
         const currentTime = new Date(consumerInfo.ts);
         const numPendingJobs = consumerInfo.num_pending;
         const iter = await wkv.history({ key: `worker.*` });
-        // await wkv.delete('worker.PW88T130W9GR16Y26HKO8P');
-        // const de = await wkv.get('worker.PW88T130W9GR16Y26HKO8P');
         console.info(
           `🔨 The number of pending  jobs for execute is ${numPendingJobs} 🔨`
         );
@@ -130,7 +127,6 @@ const run = async () => {
 
           const numWorkers = iter.getProcessed();
           if (numWorkers - workersOverflowed < workersStimated) {
-
             await publishMessage(
               {
                 action: SCALE_UP,
@@ -144,12 +140,14 @@ const run = async () => {
           }
         } else {
           for await (const e of iter) {
-
             const w = await wkv.get(e.key);
-            if (w?.sm?.header?.headers?.get("KV-Operation") != null &&
-                w?.sm?.header?.headers?.get("KV-Operation")[0] === "DEL"){
-              console.log("INSIDE THE FUCKING SHIT")
-              continue;}
+            if (
+              w?.sm?.header?.headers?.get('KV-Operation') != null &&
+              w?.sm?.header?.headers?.get('KV-Operation')[0] === 'DEL'
+            ) {
+              console.log('INSIDE THE FUCKING SHIT');
+              continue;
+            }
 
             const worker = e.json();
             const lastAckTime = new Date(worker.last_time_executed);
