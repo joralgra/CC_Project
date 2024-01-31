@@ -5,7 +5,6 @@ import { workSubject } from '../../../config/env';
 import { natsWrapper } from '../../../config/nats-wrapper';
 interface Data {
   user: string | string[] | undefined;
-  jobId: string;
   image: any;
 }
 
@@ -55,6 +54,8 @@ const sendJob = async (data: Data) => {
     );
 
     console.log(`${msg.stream}[${msg.seq}]: duplicate? ${msg.duplicate}`);
+
+    return jobId;
   } catch (error) {
     throw error;
   }

@@ -13,6 +13,7 @@ services:
         "--http-address=0.0.0.0:8080",
         "--skip-auth-regex=/forms/*",
         "--redirect-url=http://localhost:8080/oauth2/callback",
+        "--github-repo=joralgra/CC_Project",
         "--email-domain=*"
       ]
       restart: always
@@ -36,8 +37,6 @@ services:
       - WORK_SUBJECT=subjectJob
     depends_on:
       - nats1
-    ports:
-      - 3000:3000
     networks: 
       - nats
   observer:
