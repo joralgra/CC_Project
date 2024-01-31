@@ -14,7 +14,7 @@ services:
         "--skip-auth-regex=/forms/*",
         "--redirect-url=http://localhost:8080/oauth2/callback",
         "--github-repo=joralgra/CC_Project",
-        "--email-domain=*"
+        "--email-domain=*",
       ]
       restart: always
       env_file:

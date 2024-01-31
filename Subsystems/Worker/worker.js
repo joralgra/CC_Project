@@ -140,11 +140,11 @@ async function start_engine() {
         // let count = 0;
         // for await(const msg of messages) count++; // What a shitty way, but this is a shitty iterable
         // console.log("✉ Received " + (count > 0? "a": "no") + " message.")
-        await compute_unit(messages, worker_nuid);
+        await compute_unit(messages, workerKVkey, worker_nuid);
 
         await millis(1000);
 
-        let obsMessages = await cObs.fetch({max_messages: -1});
+        let obsMessages = await cObs.fetch({max_messages: 0});
         // count = 0;
         // for await(const msg of messages) count++; // What a shitty way, but this is a shitty iterable
         // console.log("💌 Received " + (count > 0? "a": "no") + " observer message.")
@@ -160,11 +160,13 @@ async function check_system(obsMessages, thisworkerKV_Key, worker_id) {
 
     for await(const msg of obsMessages) {
 
+        console.log("💌 Received observer message at worker [" + worker_id + "]")
+
         let pmsg = JSON.parse(Buffer.from(msg.data).toString());
 
-        if (pmsg.id !== worker_id) continue;
-
         if (pmsg.action === "DOWN") {
+
+            if (pmsg.id !== worker_id) continue;
 
             msg.ack();
             console.log("🔴 System is going down by observer request...")
@@ -173,6 +175,7 @@ async function check_system(obsMessages, thisworkerKV_Key, worker_id) {
             process.exit();
             // isOperative = false;
         } else {
+            console.log(" Was UP message, ignoring...")
             // msg.ack();
             continue;
         }
@@ -204,6 +207,7 @@ async function compute_unit(messages,workerKVkey,worker_nuid) {
 
             let userId = pmsg.user;
             let jobId = pmsg.jobId;
+
             console.log("Working on job [" + jobId + "]");
             console.log("For User [" + userId + "]");
 
@@ -214,6 +218,7 @@ async function compute_unit(messages,workerKVkey,worker_nuid) {
             kvValue.state = "PENDING";
             kvValue.startTime = new Date().toISOString();
             kvValue.workerId = worker_nuid;
+            let imageMimeType = kvValue.image.mimetype;
             await updateKV(userId + "." + jobId, kvValue);
 
 
@@ -231,7 +236,7 @@ async function compute_unit(messages,workerKVkey,worker_nuid) {
             console.log(" -> RUNNING PHASE ")
 
             // Run the job
-            let resBuffer = await execute_model(blob)
+            let resBuffer = await execute_model(imageMimeType, blob)
 
             // Store the Blob in the Object Store
             let blob_name = jobId + "-output";
@@ -289,7 +294,7 @@ function saveFile(fileName, buf) {
     fs.writeFileSync(path.resolve(outputBaseDir, fileName), buf)
 }
 
-async function execute_model(blob) {
+async function execute_model(imageMimeType, blob) {
 
     console.log("Running model ...")
 
@@ -297,7 +302,7 @@ async function execute_model(blob) {
     // const imageUrl = await blobUtil.createObjectURL(blob);
     const buffer = Buffer.from(blob);
 
-    const dataUrl = `data:image/png;base64,${buffer.toString('base64')}`;
+    const dataUrl = `data:` + imageMimeType + `;base64,${buffer.toString('base64')}`;
     // load the image
     const img = await canvas.loadImage(dataUrl)
 
@@ -319,16 +324,16 @@ async function execute_model(blob) {
     // faceapi.draw.drawFaceLandmarks(out, results.map(res => res.landmarks), {drawLines: true, color: 'red'})
     // faceapi.draw.drawFaceExpressions(out, results.map(res => res.expressions))
 
-    const out = faceapi.createCanvasFromMedia(img)
+    const out = await faceapi.createCanvasFromMedia(img)
     faceapi.draw.drawDetections(out, results.map(res => res.detection))
     faceapi.draw.drawFaceExpressions(out, results)
 
     // save the new canvas as image
-    // saveFile('executionTest.jpg', out.toBuffer('image/jpeg'))
+    // saveFile('executionTest.jpg', out.toBuffer('image/png'))
     // console.log('done, saved results to out/faceLandmarkDetection.jpg')
 
     console.log("Success ✨")
-    return out.toBuffer('image/jpeg');
+    return out.toBuffer('image/png');
     // return out.toBuffer('image/jpeg');
 }
 

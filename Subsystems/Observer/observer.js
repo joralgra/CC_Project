@@ -82,7 +82,7 @@ const run = async () => {
         if (config.hasOwnProperty('jobsForWorker')) {
           ESTIMATED_JOBS_FOR_WORKER = config.jobsForWorker;
           console.log(
-            `Estimated jobs for worker (param) was updateted in ${config.jobsForWorker} ms`
+            `Estimated jobs for worker (param) was updateted in ${config.jobsForWorker} `
           );
         }
       }
@@ -104,11 +104,12 @@ const run = async () => {
         elapsedTimes = [];
 
         const consumerInfo = await jsm.consumers.info(WORK_QUEUE, WORK_SUBJECT);
-        const lastConsumedTime = new Date(consumerInfo.ack_floor.last_active);
+        // const lastConsumedTime = new Date(consumerInfo.ack_floor.last_active);
         const currentTime = new Date(consumerInfo.ts);
         const numPendingJobs = consumerInfo.num_pending;
         const iter = await wkv.history({ key: `worker.*` });
-
+        // await wkv.delete('worker.PW88T130W9GR16Y26HKO8P');
+        // const de = await wkv.get('worker.PW88T130W9GR16Y26HKO8P');
         console.info(
           `🔨 The number of pending  jobs for execute is ${numPendingJobs} 🔨`
         );
@@ -143,14 +144,21 @@ const run = async () => {
           }
         } else {
           for await (const e of iter) {
+
+            const w = await wkv.get(e.key);
+            if (w?.sm?.header?.headers?.get("KV-Operation") != null &&
+                w?.sm?.header?.headers?.get("KV-Operation")[0] === "DEL"){
+              console.log("INSIDE THE FUCKING SHIT")
+              continue;}
+
             const worker = e.json();
             const lastAckTime = new Date(worker.last_time_executed);
             const id = worker.id;
 
-            if (lastConsumedTime - lastAckTime > MAX_WATING_TIME_SLEEP_MS) {
+            if (currentTime - lastAckTime > MAX_WATING_TIME_SLEEP_MS) {
               await publishMessage({ id, action: SCALE_DOWM, time: currentTime }, js);
             } else {
-              console.log(`🏝 Nothing to do, the worker with ID ${id} still be alive 🌊`);
+              console.log(`🏝 Nothing to do, the worker with ID ${id} is still alive 🌊`);
             }
           }
         }
